@@ -31,7 +31,7 @@ jobs:
 
     - name: Run processing script
       run: |
-        python process_logistics.py ${{ github.event.inputs.relo_file }} ${{ github.event.inputs.fmer_file }}
+        python untitled25.py ${{ github.event.inputs.relo_file }} ${{ github.event.inputs.fmer_file }}
 
     - name: Upload results
       uses: actions/upload-artifact@v2
