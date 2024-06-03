@@ -1,0 +1,40 @@
+name: Process Files
+
+# This workflow is triggered manually
+on:
+  workflow_dispatch:
+    inputs:
+      relo_file:
+        description: 'Path to the ReLo file'
+        required: true
+      fmer_file:
+        description: 'Path to the FMER file'
+        required: true
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl
+
+    - name: Run processing script
+      run: |
+        python process_logistics.py ${{ github.event.inputs.relo_file }} ${{ github.event.inputs.fmer_file }}
+
+    - name: Upload results
+      uses: actions/upload-artifact@v2
+      with:
+        name: output
+        path: cross_overs_and_common_lanes.xlsx
