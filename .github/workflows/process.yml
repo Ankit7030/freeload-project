@@ -2,13 +2,6 @@ name: Run Script
 
 on:
   workflow_dispatch:
-    inputs:
-      relo_file:
-        description: 'URL to the ReLo file'
-        required: true
-      fmer_file:
-        description: 'URL to the FMER file'
-        required: true
 
 jobs:
   run_script:
@@ -20,17 +13,12 @@ jobs:
       with:
         fetch-depth: 1  # Fetch only the latest commit to reduce checkout time
 
-    - name: Log directory contents before download
-      run: ls -la
+    - name: Checkout input files branch
+      uses: actions/checkout@v3
+      with:
+        ref: input-files  # Branch where the input files are stored
 
-    - name: Download input files
-      run: |
-        echo "Downloading ReLo file from ${{ github.event.inputs.relo_file }}"
-        curl -L ${{ github.event.inputs.relo_file }} -o relo_df.csv
-        echo "Downloading FMER file from ${{ github.event.inputs.fmer_file }}"
-        curl -L ${{ github.event.inputs.fmer_file }} -o fmer_df.csv
-
-    - name: Log downloaded files
+    - name: Log directory contents before running script
       run: ls -la
 
     - name: Install Python dependencies
@@ -40,9 +28,9 @@ jobs:
 
     - name: Run script
       run: |
-        python untitled25.py relo_df.csv fmer_df.csv FleetLite_carts_run_2_${{ github.run_id }}.xlsx
+        python untitled25.py relo.csv fmer.csv FleetLite_carts_run_2_${{ github.run_id }}.xlsx
 
-    - name: Log output file
+    - name: Log directory contents after running script
       run: ls -la
 
     - name: Upload output file
