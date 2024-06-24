@@ -1,13 +1,66 @@
-import pandas as pd
-import sys
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Jun 16 22:10:56 2024
 
-relo_file = sys.argv[1]
-fmer_file = sys.argv[2]
-output_file = sys.argv[3]
+@author: ankikul
+"""
+
+import pandas as pd
+from datetime import  date
+import calendar
+import time
+
+current_time = time.localtime()  # Get current time as a tuple
+year = current_time[0]
+month = current_time[1]
+day = current_time[2]
+
+formatted_date = f"{day:02d}-{month:02d}-{year}"  # Pad with zeros
+#reading the inputs
+relo = pd.read_csv(r'C:\Users\ankikul\Downloads\carts_1906_u2.csv')
+#relo=relo[relo.orig_country.isin(['GB'])]
+relo['Corresponding CPT']=pd.to_datetime(relo['Corresponding CPT'])
+relo['Corresponding CPT']=relo['Corresponding CPT'].dt.date
+relo=relo[relo['Tour ID'].isnull()]
+columns_to_keep=['Load #','Lane','Corresponding CPT','Equipment Type']
+relo=relo[columns_to_keep]
+
+relo['orig'] = pd.Series([x.partition("->")[0] for x in relo['Lane']])
+relo['dest'] = pd.Series([x.partition("->")[2] for x in relo['Lane']])
+
+#relo_pilot=relo.copy()
+relo_pilot=relo.copy()
+eligible_equipment=['DROP_TRAILER']
+relo_pilot['eligible_equipment']=relo_pilot['Equipment Type'].apply(lambda x:1 if x in eligible_equipment else 0)
+relo_pilot=relo_pilot[relo_pilot['eligible_equipment']==1]
+
+fmer = pd.read_csv(r'C:\Users\ankikul\Downloads\fmer_fmc_1906_u2.csv')
+#relo=relo[relo.orig_country.isin(['GB'])]
+fmer['Corresponding CPT']=pd.to_datetime(fmer['Corresponding CPT'])
+fmer['Corresponding CPT']=fmer['Corresponding CPT'].dt.date
+fmer=fmer[columns_to_keep]
+fmer['orig'] = pd.Series([x.partition("->")[0] for x in fmer['Lane']])
+fmer['dest'] = pd.Series([x.partition("->")[2] for x in fmer['Lane']])
+#fmer['pilot_site']=fmer['orig'].apply(lambda x:1 if x in b else 0)
+fmer_pilot=fmer.copy()
+fmer_pilot['eligible_equipment']=fmer_pilot['Equipment Type'].apply(lambda x:1 if x in eligible_equipment else 0)
+fmer_pilot=fmer_pilot[fmer_pilot['eligible_equipment']==1]
+
+final_columns=['Load #','Lane','Corresponding CPT']
+relo_pilot=relo_pilot[final_columns]
+
+fmer_pilot=fmer_pilot[final_columns]
+fmer_pilot=fmer_pilot.rename(columns={'Load #':'identifier', 'Corresponding CPT':'date', 'Lane':'lane'})
+relo_pilot=relo_pilot.rename(columns={'Load #':'identifier', 'Corresponding CPT':'date', 'Lane':'lane'})
+
+relo_input=f"relo_carts_{formatted_date}.xlsx"
+fmer_input=f"fmer_{formatted_date}.xlsx"
+relo_pilot.to_excel(relo_input)
+fmer_pilot.to_excel(fmer_input)
 
 # Load the actual input dataframes
-relo_df = pd.read_csv(relo_file)
-fmer_df = pd.read_csv(fmer_file)
+relo_df = relo_pilot.copy()
+fmer_df = fmer_pilot.copy()
 
 # Ensure 'date' columns are in datetime format
 relo_df['date'] = pd.to_datetime(relo_df['date'])
@@ -16,11 +69,18 @@ fmer_df['date'] = pd.to_datetime(fmer_df['date'])
 # Find unique dates in both dataframes
 unique_dates = pd.concat([relo_df['date'], fmer_df['date']]).unique()
 
-# Prepare dictionaries to store the outputs for each date
-cross_overs_dict = {}
-common_lanes_dict = {}
-relo_non_flipped_dict = {}
+# Prepare lists to store the consolidated outputs
+all_common_lanes = []
+all_cross_overs = []
+all_non_flipped = []
 summary_list = []
+
+def split_lane(lane):
+    if isinstance(lane, str) and '->' in lane:
+        parts = lane.split('->')
+        if len(parts) == 2:
+            return parts[0], parts[1]
+    return None, None
 
 for date in unique_dates:
     print(f"Processing date: {date}")
@@ -29,15 +89,32 @@ for date in unique_dates:
     relo_filtered = relo_df[relo_df['date'] == date].copy()
     fmer_filtered = fmer_df[fmer_df['date'] == date].copy()
 
-    # Split lanes into start and end components
-    relo_filtered[['start_relo', 'end_relo']] = relo_filtered['lane'].str.split('->', expand=True)
-    fmer_filtered[['start_fmer', 'end_fmer']] = fmer_filtered['lane'].str.split('->', expand=True)
+    # Apply split_lane function and handle invalid rows
+    relo_filtered['split_lane'] = relo_filtered['lane'].apply(split_lane)
+    fmer_filtered['split_lane'] = fmer_filtered['lane'].apply(split_lane)
+
+    # Filter out invalid lanes
+    relo_filtered = relo_filtered[relo_filtered['split_lane'].apply(lambda x: x != (None, None))]
+    fmer_filtered = fmer_filtered[fmer_filtered['split_lane'].apply(lambda x: x != (None, None))]
+
+    # Extract valid splits
+    if relo_filtered.empty or fmer_filtered.empty:
+        print(f"No valid lanes for processing on {date}.")
+        continue
+
+    relo_filtered['start_relo'], relo_filtered['end_relo'] = zip(*relo_filtered['split_lane'])
+    fmer_filtered['start_fmer'], fmer_filtered['end_fmer'] = zip(*fmer_filtered['split_lane'])
+
+    # Drop the temporary 'split_lane' column
+    relo_filtered.drop(columns=['split_lane'], inplace=True)
+    fmer_filtered.drop(columns=['split_lane'], inplace=True)
 
     # Identify common lanes ensuring no duplicates and one-to-one mapping
     common_lanes = pd.merge(relo_filtered, fmer_filtered, left_on=['start_relo', 'end_relo'], right_on=['start_fmer', 'end_fmer'])
     common_lanes = common_lanes[['identifier_x', 'identifier_y', 'lane_x']]
     common_lanes.columns = ['relo_identifier', 'fmer_identifier', 'lane']
     common_lanes = common_lanes.drop_duplicates(subset=['relo_identifier', 'fmer_identifier'])
+    common_lanes['date'] = date
 
     used_relo_identifiers = set()
     used_fmer_identifiers = set()
@@ -49,13 +126,14 @@ for date in unique_dates:
             used_fmer_identifiers.add(row['fmer_identifier'])
 
     common_lanes = pd.DataFrame(common_lanes_list)
-    common_lanes_dict[date] = common_lanes.reset_index(drop=True)
+    all_common_lanes.append(common_lanes)
     
     print(f"Common lanes found: {len(common_lanes)}")
 
     # Keep track of used identifiers to avoid duplicates
-    used_relo_identifiers.update(common_lanes['relo_identifier'])
-    used_fmer_identifiers.update(common_lanes['fmer_identifier'])
+    if not common_lanes.empty:
+        used_relo_identifiers.update(common_lanes['relo_identifier'])
+        used_fmer_identifiers.update(common_lanes['fmer_identifier'])
 
     # Remove common lanes from consideration in cross-overs
     relo_filtered = relo_filtered[~relo_filtered['identifier'].isin(used_relo_identifiers)]
@@ -66,12 +144,15 @@ for date in unique_dates:
     # Create a set of fmer lanes for quick lookup
     fmer_lanes = set(f"{row['start_fmer']}->{row['end_fmer']}" for _, row in fmer_filtered.iterrows())
 
+    used_fmer_identifiers_for_crossovers = set()
+    used_relo_identifiers_for_crossovers = set()
+
     # Identify cross-overs ensuring no duplicates
     for i, relo_row1 in relo_filtered.iterrows():
-        if relo_row1['identifier'] in used_relo_identifiers:
+        if relo_row1['identifier'] in used_relo_identifiers_for_crossovers:
             continue
         for j, relo_row2 in relo_filtered.iterrows():
-            if i >= j or relo_row2['identifier'] in used_relo_identifiers:
+            if i >= j or relo_row2['identifier'] in used_relo_identifiers_for_crossovers:
                 continue
 
             # Check if we can form an "X" pattern with these two `relo` lanes
@@ -81,57 +162,67 @@ for date in unique_dates:
 
                 # Check if the "X" pattern exists in the `fmer` lanes
                 if x_pattern1 in fmer_lanes and x_pattern2 in fmer_lanes:
-                    cross_overs_list.append({
-                        'relo_identifier1': relo_row1['identifier'],
-                        'relo_identifier2': relo_row2['identifier'],
-                        'fmer_identifier1': fmer_filtered[fmer_filtered['lane'] == x_pattern1].iloc[0]['identifier'],
-                        'fmer_identifier2': fmer_filtered[fmer_filtered['lane'] == x_pattern2].iloc[0]['identifier'],
-                        'relo_lane1': relo_row1['lane'],
-                        'relo_lane2': relo_row2['lane'],
-                        'fmer_lane1': x_pattern1,
-                        'fmer_lane2': x_pattern2,
-                        'cross_over_description': f"{relo_row1['lane']} and {relo_row2['lane']} with {x_pattern1} and {x_pattern2}"
-                    })
-                    used_relo_identifiers.update([relo_row1['identifier'], relo_row2['identifier']])
-                    used_fmer_identifiers.update([
-                        fmer_filtered[fmer_filtered['lane'] == x_pattern1].iloc[0]['identifier'],
-                        fmer_filtered[fmer_filtered['lane'] == x_pattern2].iloc[0]['identifier']
-                    ])
-                    break
+                    fmer1 = fmer_filtered[fmer_filtered['lane'] == x_pattern1]
+                    fmer2 = fmer_filtered[fmer_filtered['lane'] == x_pattern2]
+
+                    if not fmer1.empty and not fmer2.empty and fmer1.iloc[0]['identifier'] not in used_fmer_identifiers_for_crossovers and fmer2.iloc[0]['identifier'] not in used_fmer_identifiers_for_crossovers:
+                        cross_overs_list.append({
+                            'relo_identifier1': relo_row1['identifier'],
+                            'relo_identifier2': relo_row2['identifier'],
+                            'fmer_identifier1': fmer1.iloc[0]['identifier'],
+                            'fmer_identifier2': fmer2.iloc[0]['identifier'],
+                            'relo_lane1': relo_row1['lane'],
+                            'relo_lane2': relo_row2['lane'],
+                            'fmer_lane1': x_pattern1,
+                            'fmer_lane2': x_pattern2,
+                            'cross_over_description': f"{relo_row1['lane']} and {relo_row2['lane']} with {x_pattern1} and {x_pattern2}",
+                            'date': date
+                        })
+                        used_relo_identifiers_for_crossovers.update([relo_row1['identifier'], relo_row2['identifier']])
+                        used_fmer_identifiers_for_crossovers.update([fmer1.iloc[0]['identifier'], fmer2.iloc[0]['identifier']])
+                        break
 
     # Convert cross-overs to DataFrame and ensure no duplicates
     if cross_overs_list:
         output_cross_overs = pd.DataFrame(cross_overs_list).drop_duplicates(subset=['relo_identifier1', 'relo_identifier2', 'fmer_identifier1', 'fmer_identifier2'])
-        cross_overs_dict[date] = output_cross_overs.reset_index(drop=True)
+        all_cross_overs.append(output_cross_overs)
     else:
         print(f"No cross-overs found for date: {date}")
 
     # Identify relo loads that cannot be flipped
-    relo_ids_in_cross_overs = set(used_relo_identifiers)
+    relo_ids_in_cross_overs = set(used_relo_identifiers_for_crossovers)
     non_flipped_relo = relo_filtered[~relo_filtered['identifier'].isin(relo_ids_in_cross_overs)]
-    relo_non_flipped_dict[date] = non_flipped_relo[['identifier', 'lane']].reset_index(drop=True)
+    non_flipped_relo['date'] = date
+    all_non_flipped.append(non_flipped_relo[['identifier', 'lane', 'date']])
 
     # Add to summary list
     summary_list.append({
         'date': date,
-        'cross_overs': len(cross_overs_dict.get(date, [])),
-        'common_lanes': len(common_lanes_dict.get(date, [])),
-        'non_flippable_relo': len(relo_non_flipped_dict.get(date, []))
+        'cross_overs': len(cross_overs_list),
+        'common_lanes': len(common_lanes),
+        'non_flippable_relo': len(non_flipped_relo)
     })
 
-# Write the outputs to an Excel file
-with pd.ExcelWriter(output_file) as writer:
-    for date in unique_dates:
-        date_str = pd.Timestamp(date).strftime('%Y-%m-%d')
-        if date in cross_overs_dict:
-            cross_overs_dict[date].to_excel(writer, sheet_name=f'Cross_Overs_{date_str}', index=False)
-        if date in common_lanes_dict:
-            common_lanes_dict[date].to_excel(writer, sheet_name=f'Common_Lanes_{date_str}', index=False)
-        if date in relo_non_flipped_dict:
-            relo_non_flipped_dict[date].to_excel(writer, sheet_name=f'Non_Flipped_{date_str}', index=False)
-    
-    # Write summary sheet
-    summary_df = pd.DataFrame(summary_list)
+# Consolidate results into single DataFrames
+common_lanes_df = pd.concat(all_common_lanes).reset_index(drop=True)
+try:
+    cross_overs_df=pd.DataFrame()
+    cross_overs_df = pd.concat(all_cross_overs).reset_index(drop=True)
+except ValueError:
+    cross_overs_df=pd.DataFrame()
+    print("No Cross-overs")
+
+non_flipped_df = pd.concat(all_non_flipped).reset_index(drop=True)
+summary_df = pd.DataFrame(summary_list)
+
+
+
+filename = f'FleetLite_carts_run_2_{formatted_date}.xlsx'
+# Write the consolidated outputs to an Excel file
+with pd.ExcelWriter(filename) as writer:
+    common_lanes_df.to_excel(writer, sheet_name='Common_Lanes', index=False)
+    cross_overs_df.to_excel(writer, sheet_name='Cross_Overs', index=False)
+    non_flipped_df.to_excel(writer, sheet_name='Non_Flipped', index=False)
     summary_df.to_excel(writer, sheet_name='Summary', index=False)
 
-print("Data processing complete. Output saved to cross_overs_and_common_lanes.xlsx")
+print("Data processing complete. Output saved to consolidated_cross_overs_and_common_lanes.xlsx")
