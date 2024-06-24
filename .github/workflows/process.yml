@@ -18,14 +18,20 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
       with:
-        fetch-depth: 1
+        fetch-depth: 1  # Fetch only the latest commit to reduce checkout time
+
+    - name: Log directory contents before download
+      run: ls -la
 
     - name: Download input files
       run: |
         echo "Downloading ReLo file from ${{ github.event.inputs.relo_file }}"
-        curl -L ${{ github.event.inputs.relo_file }} -o relo_df.xlsx
+        curl -L ${{ github.event.inputs.relo_file }} -o relo_df.csv
         echo "Downloading FMER file from ${{ github.event.inputs.fmer_file }}"
-        curl -L ${{ github.event.inputs.fmer_file }} -o fmer_df.xlsx
+        curl -L ${{ github.event.inputs.fmer_file }} -o fmer_df.csv
+
+    - name: Log downloaded files
+      run: ls -la
 
     - name: Install Python dependencies
       run: |
@@ -34,10 +40,13 @@ jobs:
 
     - name: Run script
       run: |
-        python untitled25.py relo_df.xlsx fmer_df.xlsx output.xlsx
+        python untitled25.py relo_df.csv fmer_df.csv FleetLite_carts_run_2_${{ github.run_id }}.xlsx
+
+    - name: Log output file
+      run: ls -la
 
     - name: Upload output file
       uses: actions/upload-artifact@v3
       with:
         name: output
-        path: output.xlsx
+        path: FleetLite_carts_run_2_${{ github.run_id }}.xlsx
