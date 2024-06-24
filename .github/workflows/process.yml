@@ -17,11 +17,18 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        fetch-depth: 1  # Fetch only the latest commit to reduce checkout time
 
     - name: Download input files
       run: |
         curl -L ${{ github.event.inputs.relo_file }} -o relo_df.xlsx
         curl -L ${{ github.event.inputs.fmer_file }} -o fmer_df.xlsx
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas openpyxl
 
     - name: Run script
       run: |
