@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       relo_file:
-        description: 'Relo file URL'
+        description: 'URL to the ReLo file'
         required: true
       fmer_file:
-        description: 'Fmer file URL'
+        description: 'URL to the FMER file'
         required: true
 
 jobs:
