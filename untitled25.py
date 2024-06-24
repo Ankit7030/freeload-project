@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun  3 07:56:32 2024
-
-@author: ankikul
-"""
-
 import pandas as pd
+import sys
+
+# Read input and output file paths from command-line arguments
+relo_file_path = sys.argv[1]
+fmer_file_path = sys.argv[2]
+output_file_path = sys.argv[3]
 
 # Load the actual input dataframes
-relo_df = pd.read_excel('relo_df.xlsx')
-fmer_df = pd.read_excel('fmer_df.xlsx')
+relo_df = pd.read_excel(relo_file_path)
+fmer_df = pd.read_excel(fmer_file_path)
 
 # Ensure 'date' columns are in datetime format
 relo_df['date'] = pd.to_datetime(relo_df['date'])
@@ -122,7 +121,7 @@ for date in unique_dates:
     })
 
 # Write the outputs to an Excel file
-with pd.ExcelWriter('cross_overs_and_common_lanes.xlsx') as writer:
+with pd.ExcelWriter(output_file_path) as writer:
     for date in unique_dates:
         date_str = pd.Timestamp(date).strftime('%Y-%m-%d')
         if date in cross_overs_dict:
