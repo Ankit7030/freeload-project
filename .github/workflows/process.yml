@@ -20,10 +20,18 @@ jobs:
       with:
         fetch-depth: 1  # Fetch only the latest commit to reduce checkout time
 
+    - name: Log directory contents
+      run: ls -la
+
     - name: Download input files
       run: |
+        echo "Downloading ReLo file from ${{ github.event.inputs.relo_file }}"
         curl -L ${{ github.event.inputs.relo_file }} -o relo_df.xlsx
+        echo "Downloading FMER file from ${{ github.event.inputs.fmer_file }}"
         curl -L ${{ github.event.inputs.fmer_file }} -o fmer_df.xlsx
+
+    - name: Log downloaded files
+      run: ls -la
 
     - name: Install Python dependencies
       run: |
@@ -33,6 +41,9 @@ jobs:
     - name: Run script
       run: |
         python untitled25.py relo_df.xlsx fmer_df.xlsx output.xlsx
+
+    - name: Log output file
+      run: ls -la
 
     - name: Upload output file
       uses: actions/upload-artifact@v3
