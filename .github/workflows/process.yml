@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Download input files
       run: |
@@ -28,7 +28,7 @@ jobs:
         python untitled25.py relo_df.xlsx fmer_df.xlsx output.xlsx
 
     - name: Upload output file
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: output
         path: output.xlsx
