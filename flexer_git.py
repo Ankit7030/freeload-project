@@ -13,9 +13,8 @@ Created on Fri May 24 10:47:11 2024
 """
 
 import pandas as pd
-from datetime import date
+from datetime import date, timedelta
 import calendar
-import time
 import argparse
 
 # Set up argument parser
@@ -23,12 +22,13 @@ parser = argparse.ArgumentParser(description='Process relo and times files.')
 parser.add_argument('relo_file', type=str, help='Path to the ReLo CSV file')
 parser.add_argument('times_file', type=str, help='Path to the times CSV file')
 args = parser.parse_args()
-# Load the data (Replace these with the actual file reading code)
-relo = args.relo_file
+
+# Load the data
+relo = pd.read_csv(args.relo_file)
 relo['identifier'] = range(1, len(relo) + 1)
 relo['Scheduled Truck Arrival - 1 date'] = pd.to_datetime(relo['Scheduled Truck Arrival - 1 date'])
 
-times = args.times_file
+times = pd.read_csv(args.times_file)
 times['End'] = times['End'].replace('0:00', '23:59')
 
 # Ensure 'day' column is correctly created
@@ -140,7 +140,6 @@ merged_df = merged_df.dropna(subset=['Pickup Window Start 1', 'Pickup Window End
 columns_to_drop = [
     'identifier', 'pickup_time', 'delivery_time', 'orig_key', 'dest_key', 'Site_pickup', 'Site_delivery', 'day_pickup', 'day_delivery',
     'Start_pickup', 'End_pickup', 'key_pickup', 'Start_delivery', 'End_delivery', 'key_delivery', 'band', 'Scheduled Truck Arrival - 1 datetime','day','	Day_pickup',	'pickup_start_hour','	pickup_end_hour','	Day_delivery','	delivery_start_hour',	'delivery_end_hour'
-
 ]
 
 # Ensure that only existing columns are dropped
@@ -152,7 +151,6 @@ for col in columns:
     col=col.strip("\t")
     columns_1.append(col)
 merged_df = merged_df.drop(columns_1, axis=1)
-
 
 # Save the final dataframe to a CSV file
 today = date.today()
