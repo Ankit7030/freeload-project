@@ -6,9 +6,19 @@ Created on Sun Jun 16 22:10:56 2024
 """
 
 import pandas as pd
-from datetime import  date
+from datetime import date
 import calendar
 import time
+import argparse
+
+# Set up argument parser
+parser = argparse.ArgumentParser(description='Process ReLo and FMER files.')
+parser.add_argument('relo_file', type=str, help='Path to the ReLo CSV file')
+parser.add_argument('fmer_file', type=str, help='Path to the FMER CSV file')
+args = parser.parse_args()
+
+relo_file_path = args.relo_file
+fmer_file_path = args.fmer_file
 
 current_time = time.localtime()  # Get current time as a tuple
 year = current_time[0]
@@ -16,45 +26,42 @@ month = current_time[1]
 day = current_time[2]
 
 formatted_date = f"{day:02d}-{month:02d}-{year}"  # Pad with zeros
-#reading the inputs
-relo = pd.read_csv(r'C:\Users\ankikul\Downloads\carts_1906_u2.csv')
-#relo=relo[relo.orig_country.isin(['GB'])]
-relo['Corresponding CPT']=pd.to_datetime(relo['Corresponding CPT'])
-relo['Corresponding CPT']=relo['Corresponding CPT'].dt.date
-relo=relo[relo['Tour ID'].isnull()]
-columns_to_keep=['Load #','Lane','Corresponding CPT','Equipment Type']
-relo=relo[columns_to_keep]
+
+# Reading the inputs
+relo = pd.read_csv(relo_file_path)
+relo['Corresponding CPT'] = pd.to_datetime(relo['Corresponding CPT'])
+relo['Corresponding CPT'] = relo['Corresponding CPT'].dt.date
+relo = relo[relo['Tour ID'].isnull()]
+columns_to_keep = ['Load #', 'Lane', 'Corresponding CPT', 'Equipment Type']
+relo = relo[columns_to_keep]
 
 relo['orig'] = pd.Series([x.partition("->")[0] for x in relo['Lane']])
 relo['dest'] = pd.Series([x.partition("->")[2] for x in relo['Lane']])
 
-#relo_pilot=relo.copy()
-relo_pilot=relo.copy()
-eligible_equipment=['DROP_TRAILER']
-relo_pilot['eligible_equipment']=relo_pilot['Equipment Type'].apply(lambda x:1 if x in eligible_equipment else 0)
-relo_pilot=relo_pilot[relo_pilot['eligible_equipment']==1]
+relo_pilot = relo.copy()
+eligible_equipment = ['DROP_TRAILER']
+relo_pilot['eligible_equipment'] = relo_pilot['Equipment Type'].apply(lambda x: 1 if x in eligible_equipment else 0)
+relo_pilot = relo_pilot[relo_pilot['eligible_equipment'] == 1]
 
-fmer = pd.read_csv(r'C:\Users\ankikul\Downloads\fmer_fmc_1906_u2.csv')
-#relo=relo[relo.orig_country.isin(['GB'])]
-fmer['Corresponding CPT']=pd.to_datetime(fmer['Corresponding CPT'])
-fmer['Corresponding CPT']=fmer['Corresponding CPT'].dt.date
-fmer=fmer[columns_to_keep]
+fmer = pd.read_csv(fmer_file_path)
+fmer['Corresponding CPT'] = pd.to_datetime(fmer['Corresponding CPT'])
+fmer['Corresponding CPT'] = fmer['Corresponding CPT'].dt.date
+fmer = fmer[columns_to_keep]
 fmer['orig'] = pd.Series([x.partition("->")[0] for x in fmer['Lane']])
 fmer['dest'] = pd.Series([x.partition("->")[2] for x in fmer['Lane']])
-#fmer['pilot_site']=fmer['orig'].apply(lambda x:1 if x in b else 0)
-fmer_pilot=fmer.copy()
-fmer_pilot['eligible_equipment']=fmer_pilot['Equipment Type'].apply(lambda x:1 if x in eligible_equipment else 0)
-fmer_pilot=fmer_pilot[fmer_pilot['eligible_equipment']==1]
+fmer_pilot = fmer.copy()
+fmer_pilot['eligible_equipment'] = fmer_pilot['Equipment Type'].apply(lambda x: 1 if x in eligible_equipment else 0)
+fmer_pilot = fmer_pilot[fmer_pilot['eligible_equipment'] == 1]
 
-final_columns=['Load #','Lane','Corresponding CPT']
-relo_pilot=relo_pilot[final_columns]
+final_columns = ['Load #', 'Lane', 'Corresponding CPT']
+relo_pilot = relo_pilot[final_columns]
 
-fmer_pilot=fmer_pilot[final_columns]
-fmer_pilot=fmer_pilot.rename(columns={'Load #':'identifier', 'Corresponding CPT':'date', 'Lane':'lane'})
-relo_pilot=relo_pilot.rename(columns={'Load #':'identifier', 'Corresponding CPT':'date', 'Lane':'lane'})
+fmer_pilot = fmer_pilot[final_columns]
+fmer_pilot = fmer_pilot.rename(columns={'Load #': 'identifier', 'Corresponding CPT': 'date', 'Lane': 'lane'})
+relo_pilot = relo_pilot.rename(columns={'Load #': 'identifier', 'Corresponding CPT': 'date', 'Lane': 'lane'})
 
-relo_input=f"relo_carts_{formatted_date}.xlsx"
-fmer_input=f"fmer_{formatted_date}.xlsx"
+relo_input = f"relo_carts_{formatted_date}.xlsx"
+fmer_input = f"fmer_{formatted_date}.xlsx"
 relo_pilot.to_excel(relo_input)
 fmer_pilot.to_excel(fmer_input)
 
@@ -206,16 +213,14 @@ for date in unique_dates:
 # Consolidate results into single DataFrames
 common_lanes_df = pd.concat(all_common_lanes).reset_index(drop=True)
 try:
-    cross_overs_df=pd.DataFrame()
+    cross_overs_df = pd.DataFrame()
     cross_overs_df = pd.concat(all_cross_overs).reset_index(drop=True)
 except ValueError:
-    cross_overs_df=pd.DataFrame()
+    cross_overs_df = pd.DataFrame()
     print("No Cross-overs")
 
 non_flipped_df = pd.concat(all_non_flipped).reset_index(drop=True)
 summary_df = pd.DataFrame(summary_list)
-
-
 
 filename = f'FleetLite_carts_run_2_{formatted_date}.xlsx'
 # Write the consolidated outputs to an Excel file
